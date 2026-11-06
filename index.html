@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f8f2" />
+    <meta name="description" content="认识 MILO，你的 3D 互动伙伴。输入一句话，让它挥手、鞠躬或开心地跳起来。" />
+    <title>MILO · 3D 动作实验室</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="header">
+        <a class="brand" href="./" aria-label="MILO 动作实验室首页">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i></span>
+          <span>MILO<span class="brand-divider">/</span><span class="brand-caption">动作实验室</span></span>
+        </a>
+        <span class="header-note"><span class="tiny-orbit" aria-hidden="true">✳</span> A LITTLE INPUT. A LITTLE MAGIC.</span>
+        <span class="demo-tag">交互 DEMO <span>01</span></span>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="title">
+          <div>
+            <p class="eyebrow"><span></span> WORDS INTO MOTION</p>
+            <h1 id="title">说一句，<span>动起来。</span></h1>
+            <p class="intro-copy">认识 MILO，你的 3D 互动伙伴。一个简单的指令，一点生动的回应。</p>
+          </div>
+          <div class="intro-aside"><span class="handwritten">Say hello to a little friend</span><svg viewBox="0 0 72 40" fill="none" aria-hidden="true"><path d="M3 5C21 3 12 27 31 29c14 2 25-9 32-18M51 14l14-5-3 15" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </section>
+
+        <section class="playground" aria-label="MILO 三维互动舞台">
+          <div class="scene" id="scene">
+            <div class="scene-grid" aria-hidden="true"></div>
+            <div class="character-label"><span class="mini-label">YOUR LITTLE COMPANION</span><strong>MILO <span>01</span></strong><span class="character-description">一位好奇心满满的小伙伴</span></div>
+            <div class="scene-tools">
+              <span id="connection-status" class="connection-status"><span></span> 准备中</span>
+              <button id="reset-camera" class="icon-button" type="button" title="重置视角" aria-label="重置视角"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10a8 8 0 1 1 1 6M4 4v6h6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <div id="canvas-container" role="img" aria-label="可拖拽旋转的原创 MILO 三维机器人"></div>
+            <div id="speech" class="speech" aria-hidden="true">嗨，很高兴认识你！<span>✦</span></div>
+            <div id="scene-loading" class="scene-loading"><span class="loading-orbit"></span><p>MILO 正在准备登场…</p></div>
+            <div id="scene-error" class="scene-error" hidden><strong>MILO 暂时无法登场</strong><p id="error-description">请使用支持 WebGL 2 的浏览器，并开启硬件加速后重试。</p><button id="retry" type="button">重新加载</button></div>
+            <div class="scene-bottom"><span class="orbit-tip"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><ellipse cx="10" cy="10" rx="8" ry="3.5" transform="rotate(-30 10 10)"/><path d="M10 2v16M5 3l-1 4 4-1" stroke-linecap="round"/></svg>拖拽旋转<span>·</span>滚轮缩放</span><div class="motion-status"><span id="motion-dot" class="motion-dot"></span><span id="motion-status">正在准备</span><span id="motion-time">IDLE</span></div></div>
+          </div>
+
+          <div class="control-panel">
+            <div class="panel-top"><span class="panel-heading"><span class="small-spark">✦</span>和 MILO 聊一聊</span><div class="mode-switch" role="group" aria-label="交互模式"><button id="mode-local" type="button" aria-pressed="true">本地动作</button><button id="mode-ai" type="button" aria-pressed="false" disabled>AI 对话</button></div></div>
+            <div class="ai-toolbar"><span id="ai-status" role="status">正在检查 DeepSeek 配置…</span><div><label class="voice-option"><input id="voice-toggle" type="checkbox" />朗读回复</label><button id="chat-settings" type="button">角色设定</button><button id="stop-action" type="button">停止</button></div></div>
+            <p id="ai-privacy" class="ai-privacy" hidden>AI 模式会将消息、最近 6 轮对话和角色设定发送至配置的模型服务。</p>
+            <section id="conversation" class="conversation" aria-label="与 MILO 的对话" hidden><div class="conversation-heading"><span>和 MILO 的对话</span><button id="clear-chat" type="button">清空对话</button></div><div id="chat-log" class="chat-log" role="log" aria-live="polite" aria-relevant="additions text"><p id="chat-empty" class="chat-empty">试着说：「先挥手，再慢慢鞠躬两次，欢迎新朋友。」</p></div><p id="action-plan" class="action-plan" hidden></p></section>
+            <form id="command-form" autocomplete="off">
+              <label class="sr-only" for="command-input">输入动作指令</label>
+              <span class="input-symbol" aria-hidden="true">⌘</span>
+              <input id="command-input" name="command" maxlength="1000" placeholder="输入「打招呼」「欢迎光临」或「跳跃」…" aria-describedby="feedback" disabled />
+              <button class="send-button" id="send-button" type="submit" disabled><span>发送指令</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </form>
+            <div class="quick-actions"><span class="quick-label">直接动作</span><button data-command="打招呼" type="button" disabled><span aria-hidden="true">✋</span>打招呼<kbd>1</kbd></button><button data-command="欢迎光临" type="button" disabled><span aria-hidden="true">🤍</span>欢迎光临<kbd>2</kbd></button><button data-command="跳跃" type="button" disabled><span aria-hidden="true">↟</span>跳跃<kbd>3</kbd></button><span class="enter-hint">按 <kbd>Enter ↵</kbd> 发送</span></div>
+            <p id="feedback" class="feedback" role="status" aria-live="polite">每句话都有回应，每个动作都有一点小心意。</p>
+          </div>
+        </section>
+        <footer class="footer"><span><span class="footer-dot"></span>小小指令，让陪伴更生动。</span><button id="model-info" type="button">关于这个小伙伴 <span>↗</span></button><span class="footer-edition">BUILT FOR A LITTLE DELIGHT</span></footer>
+      </main>
+    </div>
+    <dialog id="about-dialog"><button id="close-about" class="dialog-close" aria-label="关闭" type="button">×</button><span class="eyebrow">MEET MILO</span><h2>一个从零诞生的小伙伴。</h2><p>MILO 是为这个 Demo 原创的 3D 机器人，由 Three.js 几何体构建。身体、头部、手臂和双腿分别具有独立关节，支持挥手、鞠躬、跳跃、点头、摇头、耸肩、欢呼、跳舞、伸懒腰、思考和敬礼，共 11 种动作。</p><p>本地动作模式不上传指令。AI 对话模式通过本机服务调用 DeepSeek，由模型生成文字回复和动作组合；API Key 只保存在服务端。可在角色设定中自定义语气和回复语言。</p><div class="about-actions"><span>打招呼 → 挥手</span><span>欢迎光临 → 鞠躬</span><span>跳跃 → 起跳</span></div><small>模型来源：本项目原创程序化建模。详见项目 README。</small></dialog>
+    <dialog id="settings-dialog"><button id="close-settings" class="dialog-close" aria-label="关闭角色设定" type="button">×</button><span class="eyebrow">MAKE IT YOURS</span><h2>让 MILO 更像你的小伙伴。</h2><form id="settings-form"><label for="persona-input">角色与说话风格</label><textarea id="persona-input" maxlength="600" rows="4" placeholder="例如：你是一位热情的展厅迎宾员，回复简洁、礼貌；遇到访客先挥手再鞠躬。"></textarea><label for="reply-language">回复语言</label><select id="reply-language"><option value="zh-CN">简体中文</option><option value="en-US">English</option><option value="auto">跟随用户语言</option></select><p>设定保存在当前浏览器，下次对话生效。朗读使用浏览器提供的语音，部分语音可能需要联网。</p><button class="send-button" type="submit">保存设定</button></form></dialog>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

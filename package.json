@@ -1,0 +1,13 @@
+{
+  "name": "milo-motion-playground",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs --dist",
+    "test": "node --test tests/*.test.js",
+    "check:llm": "node scripts/check-llm.mjs"
+  }
+}
