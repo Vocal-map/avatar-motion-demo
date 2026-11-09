@@ -4,7 +4,7 @@ import path from 'node:path';
 import { ApiError, requestPlan } from './llm.mjs';
 import { publicConfig } from './config.mjs';
 
-const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
+const mime = { '.glb': 'model/gltf-binary', '.txt': 'text/plain; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
 const JSON_LIMIT = 64 * 1024;
 function json(res, status, body) {
   if (res.destroyed || res.writableEnded) return;
@@ -63,10 +63,10 @@ export function createApp({ root, config, isDist = false, fetchImpl = fetch }) {
         return;
       }
       if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405).end(); return; }
-      if (!['/', '/index.html', '/favicon.svg'].includes(pathname) && !pathname.startsWith('/src/')) { res.writeHead(404).end('Not found'); return; }
+      if (!['/', '/index.html', '/favicon.svg'].includes(pathname) && !pathname.startsWith('/src/') && !pathname.startsWith('/models/')) { res.writeHead(404).end('Not found'); return; }
       const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
       let filename = path.resolve(directory, relative);
-      if (!isDist && relative === 'favicon.svg') filename = path.join(directory, 'public', relative);
+      if (!isDist && (relative === 'favicon.svg' || relative.startsWith('models/'))) filename = path.join(directory, 'public', relative);
       if (!filename.startsWith(directory + path.sep) || relative.split(/[\\/]/).some((part) => part.startsWith('.'))) { res.writeHead(403).end(); return; }
       const info = await stat(filename);
       if (!info.isFile()) { res.writeHead(404).end(); return; }

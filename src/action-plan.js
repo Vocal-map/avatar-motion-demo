@@ -1,11 +1,15 @@
 import { ACTIONS } from './commands.js';
+import { EXPRESSIONS, validateExpression } from './face.js';
 
 export const PLAN_LIMITS = Object.freeze({ steps: 4, executions: 6, reply: 600, speedMin: .6, speedMax: 1.6, intensityMin: .5, intensityMax: 1.2 });
 export const PLAN_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['reply', 'actions'],
+  required: ['reply', 'actions', 'expression'],
   properties: {
     reply: { type: 'string', minLength: 1, maxLength: PLAN_LIMITS.reply },
+    expression: { type: 'object', additionalProperties: false, required: ['name', 'intensity'], properties: {
+      name: { type: 'string', enum: Object.keys(EXPRESSIONS) }, intensity: { type: 'number', minimum: 0, maximum: 1 },
+    } },
     actions: { type: 'array', maxItems: PLAN_LIMITS.steps, items: {
       type: 'object', additionalProperties: false,
       required: ['name', 'speed', 'intensity', 'repeat'],
@@ -27,7 +31,9 @@ function inRange(value, min, max) { return typeof value === 'number' && Number.i
 
 // Shared by server and browser. A malformed plan is rejected atomically.
 export function validatePlan(plan) {
-  if (!exactKeys(plan, ['reply', 'actions'])) throw new Error('回复必须只包含 reply 和 actions。');
+  // Accept older providers/fixtures without expression; the UI falls back to neutral.
+  if (!exactKeys(plan, ['reply', 'actions']) && !exactKeys(plan, ['reply', 'actions', 'expression'])) throw new Error('回复必须只包含 reply、actions 和可选的 expression。');
+  const expression = Object.hasOwn(plan, 'expression') ? validateExpression(plan.expression) : null;
   if (typeof plan.reply !== 'string' || !plan.reply.trim() || plan.reply.length > PLAN_LIMITS.reply) throw new Error('回复文字为空或超过 600 字。');
   if (!Array.isArray(plan.actions) || plan.actions.length > PLAN_LIMITS.steps) throw new Error('动作方案最多包含 4 步。');
   let executions = 0;
@@ -41,7 +47,7 @@ export function validatePlan(plan) {
     return { name: action.name, speed: action.speed, intensity: action.intensity, repeat: action.repeat };
   });
   if (executions > PLAN_LIMITS.executions) throw new Error('一个方案最多执行 6 次动作。');
-  return { reply: plan.reply.trim(), actions };
+  return { reply: plan.reply.trim(), actions, ...(expression ? { expression } : {}) };
 }
 
 export function expandPlan(plan) {
@@ -49,6 +55,7 @@ export function expandPlan(plan) {
 }
 
 export function describePlan(plan) {
-  const { actions } = validatePlan(plan);
-  return actions.length ? actions.map((step) => `${ACTIONS[step.name].label} ×${step.repeat} · 速度 ${step.speed} · 幅度 ${step.intensity}`).join(' → ') : '这次只聊天，不执行动作';
+  const { actions, expression } = validatePlan(plan);
+  const motion = actions.length ? actions.map((step) => `${ACTIONS[step.name].label} ×${step.repeat} · 速度 ${step.speed} · 幅度 ${step.intensity}`).join(' → ') : '这次只聊天，不执行动作';
+  return expression ? `${motion} · 表情：${EXPRESSIONS[expression.name].label} ${Math.round(expression.intensity * 100)}%` : motion;
 }

@@ -82,7 +82,7 @@ test('custom jump amplitudes preserve grounded crouches and return all joints to
     for (let i = 0; i <= 1000; i++) {
       const p = i / 1000;
       const pose = poseAt('jump', p, intensity);
-      const footHeight = pose.y + .785 - .38 * Math.cos(pose.rightLegX) - .405 * Math.cos(pose.rightLegX + pose.kneeX);
+      const footHeight = pose.y + 1.45 - .70 * Math.cos(pose.rightLegX) - .75 * Math.cos(pose.rightLegX + pose.kneeX);
       assert.ok(footHeight >= -1e-10, `${intensity}, ${p}`);
       if (p <= .23 || p >= .70) assert.ok(Math.abs(footHeight) < 1e-10);
     }

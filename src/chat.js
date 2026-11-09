@@ -1,4 +1,5 @@
 import { validatePlan, describePlan } from './action-plan.js';
+import { createVoice } from './voice.js';
 
 const $ = (selector) => document.querySelector(selector);
 const SETTINGS_KEY = 'milo-chat-preferences-v1';
@@ -10,7 +11,7 @@ function readPreferences() {
   } catch { return { ...DEFAULTS }; }
 }
 
-export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refreshControls, isReady }) {
+export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refreshControls, isReady, face }) {
   let preferences = readPreferences();
   let mode = 'local';
   let config = null;
@@ -19,6 +20,11 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
   let generation = 0;
   let request = null;
   const log = $('#chat-log');
+  const voice = createVoice({
+    onStart: text => face.startSpeech(text), onBoundary: index => face.boundary(index),
+    onPause: () => face.pauseSpeech(), onResume: () => face.resumeSpeech(), onEnd: () => face.stopSpeech(),
+    onError: () => setFeedback('浏览器暂时无法朗读，文字、表情与动作仍可使用。', 'error'),
+  });
 
   function setBusy(value) {
     busy = value;
@@ -51,28 +57,19 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
     }
     setBusy(false);
   }
-  function cancelVoice() { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); }
+  function cancelVoice() { voice.cancel(); }
   function stop(message = '已停止当前回复和动作。') {
     cancelRequest();
     cancelVoice();
     stopMotion();
+    face.reset();
     $('#action-plan').hidden = true;
     setSpeech('我在这里，等你下一句话。');
     setFeedback(message);
   }
   function speak(text, language) {
     if (!$('#voice-toggle').checked || !('speechSynthesis' in window)) return;
-    cancelVoice();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language === 'auto' ? (/[\u3400-\u9fff]/u.test(text) ? 'zh-CN' : 'en-US') : language;
-    const voices = window.speechSynthesis.getVoices();
-    const matching = voices.filter((voice) => voice.lang.toLowerCase().startsWith(utterance.lang.slice(0, 2)));
-    utterance.voice = matching.find((voice) => voice.localService) || matching[0] || null;
-    utterance.rate = 1;
-    utterance.onerror = (event) => {
-      if (!['canceled', 'interrupted'].includes(event.error)) setFeedback('浏览器暂时无法朗读，文字回复与动作仍可使用。', 'error');
-    };
-    window.speechSynthesis.speak(utterance);
+    voice.speak(text, language);
   }
   function setMode(next) {
     if (next === 'ai' && !config?.configured) return;
@@ -95,6 +92,7 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
     if (!config?.configured) { setFeedback('请先配置 DeepSeek，再重启本地服务。', 'error'); return; }
     stopMotion();
     cancelVoice();
+    face.reset();
     $('#action-plan').hidden = true;
     const turnPreferences = { ...preferences };
     const id = ++generation;
@@ -105,7 +103,7 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
     request = { id, controller, output };
     setBusy(true);
     setSpeech('让我想一想…');
-    setFeedback('MILO 正在组织回复和动作，可以点击「停止」取消。');
+    setFeedback('MILO 正在组织回复、表情和动作，可以点击「停止」取消。');
     $('#command-input').value = '';
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, Math.min(125000, (config.timeoutMs || 30000) + 5000));
@@ -193,8 +191,14 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
   window.addEventListener('pagehide', () => { cancelRequest(); cancelVoice(); });
   return {
     isBusy: () => busy,
+    speakPreview: () => {
+      if (!isReady() || busy) return;
+      if (!('speechSynthesis' in window)) { setFeedback('当前浏览器不支持朗读，可以使用无声嘴型演示。', 'error'); return; }
+      $('#voice-toggle').checked = true;
+      voice.speak('你好，欢迎光临。很高兴见到你！', 'zh-CN');
+    },
     handleSubmit: (message) => { if (mode !== 'ai') return false; void send(message); return true; },
-    beforeDirectAction: () => { if (mode === 'ai') { cancelRequest(); cancelVoice(); stopMotion(); $('#action-plan').hidden = true; } },
-    cancel: () => { cancelRequest(); cancelVoice(); },
+    beforeDirectAction: () => { cancelVoice(); face.reset(); if (mode === 'ai') { cancelRequest(); stopMotion(); $('#action-plan').hidden = true; } },
+    cancel: () => { cancelRequest(); cancelVoice(); face.reset(); },
   };
 }

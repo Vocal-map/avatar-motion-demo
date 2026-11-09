@@ -2,11 +2,24 @@ import { ACTIONS, parseCommand } from './commands.js';
 import { ActionQueue, idlePose, poseAt, blendPose } from './motion.js';
 import { expandPlan } from './action-plan.js';
 import { createChat } from './chat.js';
+import { EXPRESSIONS, FaceController } from './face.js';
 
 const $ = (selector) => document.querySelector(selector);
 const form = $('#command-form');
 const input = $('#command-input');
 const feedback = $('#feedback');
+const face = new FaceController();
+for (const [name, expression] of Object.entries(EXPRESSIONS)) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.expression = name;
+  button.textContent = expression.label;
+  button.setAttribute('aria-pressed', String(name === 'neutral'));
+  button.disabled = true;
+  $('#expression-buttons').append(button);
+}
+const expressionButtons = [...document.querySelectorAll('[data-expression]')];
+let lastFaceStatus = '';
 for (const [name, action] of Object.entries(ACTIONS)) {
   if (['wave', 'bow', 'jump'].includes(name)) continue;
   const button = document.createElement('button');
@@ -50,6 +63,8 @@ function enableControls(enabled) {
   $('#send-button').disabled = blocked;
   quickButtons.forEach((button) => { button.disabled = blocked; });
   $('#reset-camera').disabled = !enabled;
+  $('#face-view').disabled = !enabled;
+  for (const element of [...expressionButtons, $('#expression-intensity'), $('#mouth-demo'), $('#voice-demo')]) element.disabled = blocked;
 }
 function startAction(action) {
   active = action;
@@ -95,6 +110,7 @@ function stopMotion() {
 function playPlan(plan) {
   const actions = expandPlan(plan);
   stopMotion();
+  face.setExpression(plan.expression || { name: 'neutral', intensity: .6 }, Math.max(8000, plan.reply.length * 210 + 3000));
   const first = actions.shift();
   actions.forEach((action) => queue.add(action));
   if (first) startAction(first);
@@ -124,7 +140,31 @@ document.addEventListener('keydown', (event) => {
   const command = { 1: '打招呼', 2: '欢迎光临', 3: '跳跃' }[event.key];
   if (command) { event.preventDefault(); chat.beforeDirectAction(); submitCommand(command); }
 });
-$('#reset-camera').addEventListener('click', () => { if (scene && ready) { scene.resetCamera(); setFeedback('视角已回到 MILO 的正面。'); } });
+function setFaceView(enabled) {
+  if (!scene || !ready) return;
+  scene.setFaceView(enabled);
+  $('#scene').classList.toggle('is-face-view', enabled);
+  $('#face-view').setAttribute('aria-pressed', String(enabled));
+  $('#face-view').textContent = enabled ? '返回全身' : '面部特写';
+}
+expressionButtons.forEach(button => button.addEventListener('click', () => {
+  chat.beforeDirectAction();
+  face.setExpression({ name: button.dataset.expression, intensity: Number($('#expression-intensity').value) });
+  setFaceView(true);
+}));
+$('#expression-intensity').addEventListener('input', event => {
+  face.setExpression({ name: face.expression.name, intensity: Number(event.target.value) });
+});
+$('#mouth-demo').addEventListener('click', () => {
+  const expression = { ...face.expression };
+  chat.beforeDirectAction();
+  face.setExpression(expression);
+  face.startSpeech('你好，欢迎光临。很高兴见到你！', true);
+  setFaceView(true);
+});
+$('#voice-demo').addEventListener('click', () => { face.stopSpeech(); chat.speakPreview(); setFaceView(true); });
+$('#face-view').addEventListener('click', () => setFaceView($('#face-view').getAttribute('aria-pressed') !== 'true'));
+$('#reset-camera').addEventListener('click', () => { if (scene && ready) { setFaceView(false); setFeedback('视角已回到 MILO 的正面。'); } });
 $('#retry').addEventListener('click', () => location.reload());
 $('#model-info').addEventListener('click', () => $('#about-dialog').showModal());
 $('#close-about').addEventListener('click', () => $('#about-dialog').close());
@@ -160,7 +200,19 @@ function frame(timestamp) {
     idleTransition += dt / .35;
     currentPose = blendPose(transitionFrom, idlePose(idleTime, reducedMotion.matches), idleTransition);
   }
-  scene.render(currentPose);
+  const facePose = face.update(dt);
+  const status = `${EXPRESSIONS[face.expression.name].label} · ${face.speech ? face.speech.demo ? '无声嘴型演示' : face.speech.pausedAt !== null ? '朗读暂停' : '朗读中（估算嘴型）' : '未朗读'}`;
+  if (status !== lastFaceStatus) {
+    $('#face-status').textContent = status;
+    expressionButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.expression === face.expression.name)));
+    lastFaceStatus = status;
+  }
+  const strength = `${Math.round(face.expression.intensity * 100)}%`;
+  if ($('#expression-strength').textContent !== strength) {
+    $('#expression-strength').textContent = strength;
+    $('#expression-intensity').value = face.expression.intensity;
+  }
+  scene.render(currentPose, facePose);
   animationFrame = requestAnimationFrame(frame);
 }
 document.addEventListener('visibilitychange', () => {
@@ -183,7 +235,7 @@ async function init() {
       new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('LOAD_TIMEOUT')), 18000); }),
     ]);
     clearTimeout(timeout);
-    scene = createScene($('#canvas-container'), () => showError('3D 渲染连接已中断，请重新加载页面后再试。'));
+    scene = await createScene($('#canvas-container'), () => showError('3D 渲染连接已中断，请重新加载页面后再试。'));
     scene.render(currentPose);
     $('#scene-loading').hidden = true;
     $('#connection-status').lastChild.textContent = ' 已就绪';
@@ -194,9 +246,9 @@ async function init() {
   } catch (error) {
     clearTimeout(timeout);
     console.error('MILO initialization failed:', error);
-    const isNetwork = error.message === 'LOAD_TIMEOUT' || /fetch|import|network|module/i.test(error.message);
-    showError(isNetwork ? '3D 引擎加载失败，请检查网络是否能访问 cdn.jsdelivr.net，然后重新加载。' : '浏览器无法启动 3D 渲染。请使用支持 WebGL 2 的现代浏览器，并开启硬件加速后重试。');
+    const isNetwork = /GLB_|TimeoutError/.test(error.message + error.name) || error.message === 'LOAD_TIMEOUT' || /fetch|import|network|module/i.test(error.message);
+    showError(isNetwork ? '3D 模型或引擎加载失败，请确认服务已重启、GLB 文件存在且能访问 cdn.jsdelivr.net，然后重新加载。' : '浏览器无法启动 3D 渲染。请使用支持 WebGL 2 的现代浏览器，并开启硬件加速后重试。');
   }
 }
-chat = createChat({ playPlan, stopMotion, setFeedback, setSpeech, refreshControls: () => enableControls(ready), isReady: () => ready });
+chat = createChat({ playPlan, stopMotion, setFeedback, setSpeech, face, refreshControls: () => enableControls(ready), isReady: () => ready });
 init();

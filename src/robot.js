@@ -1,15 +1,21 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
-// Original MILO character. All geometry is created here; no external model asset.
-export function createRobot() {
-  const cream = new THREE.MeshStandardMaterial({ color: '#f7f5e9', roughness: .32, metalness: .04 });
-  const mint = new THREE.MeshStandardMaterial({ color: '#c7d7b4', roughness: .42, metalness: .04 });
-  const graphite = new THREE.MeshStandardMaterial({ color: '#34453e', roughness: .42, metalness: .22 });
-  const visor = new THREE.MeshStandardMaterial({ color: '#263b35', roughness: .22, metalness: .10 });
-  const lime = new THREE.MeshStandardMaterial({ color: '#ddf6a3', emissive: '#c7ec8f', emissiveIntensity: .6, roughness: .4 });
-  const orange = new THREE.MeshStandardMaterial({ color: '#e79b61', roughness: .35, metalness: .03 });
-  const seam = new THREE.MeshStandardMaterial({ color: '#e1dfce', roughness: .52 });
+// Original stylized human MILO character. All geometry is created here; no external model asset.
+export function createAvatar() {
+  const material = (color, roughness = .75) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
+  const skin = material('#efd0bb');
+  const blush = material('#ba7974');
+  const hair = material('#171719');
+  const hairHighlight = material('#242326');
+  const shirt = material('#a9c9ed');
+  const collar = material('#c4dcf4');
+  const pants = material('#202126');
+  const shoes = material('#17171b');
+  const sole = material('#252329');
+  const white = material('#fffaf0', .4);
+  const iris = material('#574237', .35);
+  const pupil = material('#211d25', .3);
   const root = new THREE.Group();
   root.name = 'MILO';
 
@@ -39,64 +45,88 @@ export function createRobot() {
     return part;
   }
 
-  // The upper body rotates around the waist for a true articulated bow.
-  const body = group(root, 'Waist', [0, .96, 0]);
-  mesh(body, sphere(.29), graphite, [0, .03, 0], [1, .50, .80]);
-  mesh(body, box(.94, .96, .66, .23), cream, [0, .48, 0]);
-  mesh(body, box(.71, .67, .095, .16), mint, [0, .48, .326]);
-  const badge = mesh(body, new THREE.CylinderGeometry(.095, .095, .035, 28), orange, [.19, .66, .395]);
-  badge.rotation.x = Math.PI / 2;
-  mesh(body, box(.08, .018, .014, .007), cream, [.19, .66, .416]);
-  // Three inset speaker slots and a tiny status lamp.
-  for (let i = 0; i < 3; i++) mesh(body, box(.12, .018, .015, .008), graphite, [-.18, .53 - i * .058, .386]);
-  mesh(body, sphere(.026), lime, [0, .25, .386], [1, 1, .4]);
-  mesh(body, new THREE.CylinderGeometry(.14, .17, .18, 24), graphite, [0, 1.01, 0]);
-
-  const head = group(body, 'Head', [0, 1.05, 0]);
-  mesh(head, box(1.40, 1.02, .89, .30), cream, [0, .36, 0]);
-  mesh(head, box(1.25, .78, .15, .24), seam, [0, .37, .390]);
-  mesh(head, box(1.16, .69, .14, .22), visor, [0, .37, .440]);
-  const eyes = [-.25, .25].map((x) => mesh(head, capsule(.055, .105), lime, [x, .43, .518], [1, 1, .33]));
-  const smileCurve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-.105, .235, .526), new THREE.Vector3(0, .145, .54), new THREE.Vector3(.105, .235, .526));
-  mesh(head, new THREE.TubeGeometry(smileCurve, 20, .014, 8, false), lime);
-  // Very subtle glass reflection at the top-left of the face.
-  const glint = new THREE.MeshBasicMaterial({ color: '#d6e9cc', transparent: true, opacity: .15 });
-  const reflection = mesh(head, box(.25, .035, .008, .015), glint, [-.31, .61, .515]);
-  reflection.rotation.z = .04;
-  [-1, 1].forEach((side) => {
-    const ear = mesh(head, new THREE.CylinderGeometry(.16, .16, .13, 32), mint, [side * .72, .37, 0]);
-    ear.rotation.z = Math.PI / 2;
-    const earInset = mesh(head, new THREE.CylinderGeometry(.075, .075, .012, 24), orange, [side * .791, .37, 0]);
-    earInset.rotation.z = Math.PI / 2;
-  });
-  mesh(head, new THREE.CylinderGeometry(.037, .049, .19, 16), graphite, [0, .94, -.03]);
-  mesh(head, sphere(.11), orange, [0, 1.075, -.03]);
+  // Adult proportions; leg link lengths match the shared motion geometry.
+  function tailored(parent, name, profile, mat, position, depth = .65) {
+    if (profile[0][1] > profile[profile.length - 1][1]) profile = [...profile].reverse();
+    const geometry = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), 48);
+    geometry.scale(1, 1, depth);
+    const item = mesh(parent, geometry, mat, position);
+    item.name = name;
+    return item;
+  }
+  const body = group(root, 'Waist', [0, 1.62, 0]);
+  tailored(body, 'Blouse', [[.27,0],[.29,.12],[.31,.32],[.36,.55],[.34,.70],[.25,.78],[.12,.82]], shirt, [0,0,0]);
+  mesh(body, new THREE.CylinderGeometry(.09, .11, .23, 24), skin, [0, .86, 0]);
+  // Two pointed collar panels and a central button placket.
+  for (const side of [-1,1]) {
+    const shape = new THREE.Shape();
+    shape.moveTo(side*.025,.82); shape.lineTo(side*.17,.75); shape.lineTo(side*.105,.59); shape.lineTo(side*.01,.74); shape.closePath();
+    mesh(body, new THREE.ExtrudeGeometry(shape, {depth:.015,bevelEnabled:false}), collar, [0,0,.17]);
+  }
+  mesh(body, box(.025,.57,.015,.006), collar, [0,.34,.224]);
+  for (let i=0;i<5;i++) mesh(body,sphere(.013),white,[0,.14+i*.105,.238]);
+  const skirt = tailored(root, 'PencilSkirt', [[.28,0],[.31,-.08],[.37,-.25],[.36,-.50],[.32,-.86],[.31,-.90]], pants, [0,1.64,0], .73);
+  // Store rest vertices so the skirt follows the bent legs during a jump.
+  const skirtRest = skirt.geometry.attributes.position.array.slice();
+  const head = group(body, 'Head', [0, .96, 0]);
+  head.scale.set(.46, .53, .46);
+  mesh(head, sphere(.59), skin, [0, .39, 0], [1, 1.12, .84]);
+  // Hair cap and rear volume leave the forehead and face exposed.
+  mesh(head, sphere(.59), hair, [0, .47, -.15], [1.04, 1.10, .80]);
+  const cap = new THREE.SphereGeometry(.61, 40, 24, 0, Math.PI * 2, 0, 1.24);
+  mesh(head, cap, hair, [0, .41, 0], [1.03, 1.12, .88]);
+  mesh(head, sphere(.30), hair, [0,.42,-.57], [1,.90,.75]);
+  const fringe = mesh(head,sphere(.48),hairHighlight,[-.17,.86,.18],[1,.47,.65]);
+  fringe.rotation.z=.32;
+  const eyes = [];
+  for (const side of [-1, 1]) {
+    mesh(head, sphere(.13), skin, [side * .57, .40, 0], [.70, 1.2, .8]);
+    mesh(head, sphere(.073), blush, [side * .625, .40, .035], [.35, 1, .7]);
+    mesh(head, sphere(.11), blush, [side * .34, .28, .397], [1, .45, .20]);
+    const eye = group(head, side < 0 ? 'RightEye' : 'LeftEye', [side * .225, .49, .451]);
+    mesh(eye, sphere(.115), white, [0, 0, 0], [.85, .65, .38]);
+    mesh(eye, sphere(.074), iris, [0, -.005, .039], [.72, .70, .38]);
+    mesh(eye, sphere(.043), pupil, [0, -.005, .063], [.72, .70, .3]);
+    mesh(eye, sphere(.012), white, [-.018, .028, .077]);
+    eyes.push(eye);
+    const brow = mesh(head, capsule(.024, .12), hair, [side * .23, .67, .427], [1, 1, .55]);
+    brow.rotation.z = side * .13 + Math.PI / 2;
+  }
+  mesh(head, sphere(.085), skin, [0, .36, .493], [.8, 1.05, 1]);
+  const smile = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-.12,.20,.436), new THREE.Vector3(0,.12,.47), new THREE.Vector3(.12,.20,.436));
+  mesh(head, new THREE.TubeGeometry(smile, 24, .017, 8, false), blush);
 
   function makeArm(side, name) {
-    const shoulder = group(body, name, [side * .56, .78, 0]);
-    mesh(shoulder, sphere(.17), graphite);
-    mesh(shoulder, capsule(.155, .20), cream, [0, -.245, 0]);
+    const shoulder = group(body, name, [side * .34, .70, 0]);
+    mesh(shoulder, sphere(.12), shirt);
+    mesh(shoulder, capsule(.105, .25), shirt, [0, -.22, 0]);
+    mesh(shoulder, new THREE.CylinderGeometry(.10, .10, .06, 24), collar, [0, -.36, 0]);
+    mesh(shoulder, capsule(.09, .13), shirt, [0, -.40, 0]);
     const elbow = group(shoulder, `${name}Elbow`, [0, -.49, 0]);
-    mesh(elbow, sphere(.12), graphite);
-    mesh(elbow, capsule(.135, .16), cream, [0, -.20, 0]);
-    mesh(elbow, new THREE.CylinderGeometry(.137, .137, .07, 24), mint, [0, -.34, 0]);
-    mesh(elbow, box(.25, .26, .23, .105), cream, [0, -.48, .02]);
-    mesh(elbow, capsule(.065, .04), cream, [-side * .14, -.43, .05]);
+    mesh(elbow, sphere(.095), shirt);
+    mesh(elbow, capsule(.085, .22), shirt, [0, -.18, 0]);
+    mesh(elbow, sphere(.095), skin, [0, -.41, .015], [.85, 1.15, .65]);
+    const thumb = mesh(elbow, capsule(.034, .06), skin, [-side * .10, -.38, .06]);
+    thumb.rotation.z = side * .45;
+    // Rounded finger tips make the waving hand read as human, without changing the rig.
+    for (let i = 0; i < 4; i++) mesh(elbow, capsule(.019, .065), skin, [(i - 1.5) * .035, -.51 + Math.abs(i - 1.5) * .012, .02]);
     return { shoulder, elbow };
   }
   const right = makeArm(-1, 'RightShoulder');
   const left = makeArm(1, 'LeftShoulder');
 
   function makeLeg(side, name) {
-    const hip = group(root, name, [side * .27, .90, 0]);
-    mesh(hip, sphere(.16), graphite);
-    mesh(hip, capsule(.165, .13), cream, [0, -.19, 0]);
-    const knee = group(hip, `${name}Knee`, [0, -.38, 0]);
-    mesh(knee, sphere(.123), graphite);
-    mesh(knee, capsule(.145, .10), mint, [0, -.17, 0]);
-    const foot = group(knee, `${name}Foot`, [0, -.405, 0]);
-    mesh(foot, box(.38, .29, .58, .13), cream, [0, 0, .11]);
-    mesh(foot, box(.38, .075, .57, .03), seam, [0, -.11, .11]);
+    const hip = group(root, name, [side * .17, 1.565, 0]);
+    mesh(hip, sphere(.15), skin);
+    mesh(hip, capsule(.125, .44), skin, [0, -.34, 0]);
+    const knee = group(hip, `${name}Knee`, [0, -.70, 0]);
+    mesh(knee, sphere(.095), skin);
+    tailored(knee, 'Calf', [[.095,0],[.105,-.18],[.085,-.40],[.055,-.68]], skin, [0,0,0], .85);
+    const foot = group(knee, `${name}Foot`, [0, -.75, 0]);
+    mesh(foot, sphere(.12), skin, [0,.055,.025], [.58,.7,1.2]);
+    mesh(foot, sphere(.15), shoes, [0,-.025,.13], [.64,.45,1.45]);
+    mesh(foot, box(.12,.09,.16,.035), shoes, [0,.025,-.025]);
+    mesh(foot, new THREE.CylinderGeometry(.027,.022,.14,16), shoes, [0,-.07,-.06]);
     return { hip, knee, foot };
   }
   const rightLeg = makeLeg(-1, 'RightHip');
@@ -115,6 +145,15 @@ export function createRobot() {
     rightLeg.knee.rotation.x = leftLeg.knee.rotation.x = pose.kneeX;
     rightLeg.foot.rotation.x = -(pose.rightLegX + pose.kneeX);
     leftLeg.foot.rotation.x = -(pose.leftLegX + pose.kneeX);
+    const vertices = skirt.geometry.attributes.position;
+    const angle = (pose.rightLegX + pose.leftLegX) / 2;
+    for (let i=0; i<vertices.count; i++) {
+      const x=skirtRest[i*3], y=skirtRest[i*3+1], z=skirtRest[i*3+2];
+      const bend=angle*Math.min(1,Math.max(0,-y/.65));
+      vertices.setXYZ(i,x,y*Math.cos(bend)-z*Math.sin(bend),y*Math.sin(bend)+z*Math.cos(bend));
+    }
+    vertices.needsUpdate=true;
+    skirt.geometry.computeVertexNormals();
     eyes.forEach((eye) => { eye.scale.y = pose.eyeScale; });
   }
   return { root, applyPose };

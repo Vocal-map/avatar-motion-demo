@@ -5,3 +5,5 @@ dist/
 .env
 .env.*
 !.env.example
+artifacts/face-*.png
+artifacts/model-candidates/

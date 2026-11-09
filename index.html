@@ -34,12 +34,12 @@
         <section class="playground" aria-label="MILO 三维互动舞台">
           <div class="scene" id="scene">
             <div class="scene-grid" aria-hidden="true"></div>
-            <div class="character-label"><span class="mini-label">YOUR LITTLE COMPANION</span><strong>MILO <span>01</span></strong><span class="character-description">一位好奇心满满的小伙伴</span></div>
+            <div class="character-label"><span class="mini-label">YOUR LITTLE COMPANION</span><strong>MILO <span>01</span></strong><span class="character-description">你的专属数字接待员</span></div>
             <div class="scene-tools">
               <span id="connection-status" class="connection-status"><span></span> 准备中</span>
               <button id="reset-camera" class="icon-button" type="button" title="重置视角" aria-label="重置视角"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10a8 8 0 1 1 1 6M4 4v6h6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
-            <div id="canvas-container" role="img" aria-label="可拖拽旋转的原创 MILO 三维机器人"></div>
+            <div id="canvas-container" role="img" aria-label="可拖拽旋转的 Businesswoman 02 GLB 数字人"></div>
             <div id="speech" class="speech" aria-hidden="true">嗨，很高兴认识你！<span>✦</span></div>
             <div id="scene-loading" class="scene-loading"><span class="loading-orbit"></span><p>MILO 正在准备登场…</p></div>
             <div id="scene-error" class="scene-error" hidden><strong>MILO 暂时无法登场</strong><p id="error-description">请使用支持 WebGL 2 的浏览器，并开启硬件加速后重试。</p><button id="retry" type="button">重新加载</button></div>
@@ -58,13 +58,25 @@
               <button class="send-button" id="send-button" type="submit" disabled><span>发送指令</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </form>
             <div class="quick-actions"><span class="quick-label">直接动作</span><button data-command="打招呼" type="button" disabled><span aria-hidden="true">✋</span>打招呼<kbd>1</kbd></button><button data-command="欢迎光临" type="button" disabled><span aria-hidden="true">🤍</span>欢迎光临<kbd>2</kbd></button><button data-command="跳跃" type="button" disabled><span aria-hidden="true">↟</span>跳跃<kbd>3</kbd></button><span class="enter-hint">按 <kbd>Enter ↵</kbd> 发送</span></div>
+            <section class="face-controls" aria-label="表情与嘴型预览">
+              <div class="face-heading"><span>表情与嘴型</span><button id="face-view" type="button" aria-pressed="false" disabled>面部特写</button></div>
+              <div id="expression-buttons" class="expression-buttons" role="group" aria-label="选择表情"></div>
+              <div class="face-options">
+                <label for="expression-intensity">表情强度 <output id="expression-strength" for="expression-intensity">60%</output></label>
+                <input id="expression-intensity" type="range" min="0" max="1" step="0.05" value="0.6" disabled />
+                <button id="mouth-demo" type="button" disabled>无声嘴型演示</button>
+                <button id="voice-demo" type="button" disabled>朗读示例</button>
+              </div>
+              <p class="face-note">勾选“朗读回复”后，说话时会自动带嘴型。当前按文字节奏估算，尚非逐音同步。</p>
+              <p id="face-status" class="face-status" role="status" aria-live="polite">自然 · 未朗读</p>
+            </section>
             <p id="feedback" class="feedback" role="status" aria-live="polite">每句话都有回应，每个动作都有一点小心意。</p>
           </div>
         </section>
         <footer class="footer"><span><span class="footer-dot"></span>小小指令，让陪伴更生动。</span><button id="model-info" type="button">关于这个小伙伴 <span>↗</span></button><span class="footer-edition">BUILT FOR A LITTLE DELIGHT</span></footer>
       </main>
     </div>
-    <dialog id="about-dialog"><button id="close-about" class="dialog-close" aria-label="关闭" type="button">×</button><span class="eyebrow">MEET MILO</span><h2>一个从零诞生的小伙伴。</h2><p>MILO 是为这个 Demo 原创的 3D 机器人，由 Three.js 几何体构建。身体、头部、手臂和双腿分别具有独立关节，支持挥手、鞠躬、跳跃、点头、摇头、耸肩、欢呼、跳舞、伸懒腰、思考和敬礼，共 11 种动作。</p><p>本地动作模式不上传指令。AI 对话模式通过本机服务调用 DeepSeek，由模型生成文字回复和动作组合；API Key 只保存在服务端。可在角色设定中自定义语气和回复语言。</p><div class="about-actions"><span>打招呼 → 挥手</span><span>欢迎光临 → 鞠躬</span><span>跳跃 → 起跳</span></div><small>模型来源：本项目原创程序化建模。详见项目 README。</small></dialog>
+    <dialog id="about-dialog"><button id="close-about" class="dialog-close" aria-label="关闭" type="button">×</button><span class="eyebrow">MEET MILO</span><h2>一个从零诞生的小伙伴。</h2><p>当前角色使用 Businesswoman 02 GLB 模型，包含材质贴图和 80 根骨骼。身体、头部、手臂和双腿分别具有独立关节，支持挥手、鞠躬、跳跃、点头、摇头、耸肩、欢呼、跳舞、伸懒腰、思考和敬礼，共 11 种动作。</p><p>本地动作模式不上传指令。AI 对话模式通过本机服务调用 DeepSeek，由模型生成文字回复和动作组合；API Key 只保存在服务端。可在角色设定中自定义语气和回复语言。</p><div class="about-actions"><span>打招呼 → 挥手</span><span>欢迎光临 → 鞠躬</span><span>跳跃 → 起跳</span></div><small>模型来源：models.codelove.in / Businesswoman 02。Copyright © 2020 Microsoft，MIT 授权。动作由本项目进行骨骼适配。</small></dialog>
     <dialog id="settings-dialog"><button id="close-settings" class="dialog-close" aria-label="关闭角色设定" type="button">×</button><span class="eyebrow">MAKE IT YOURS</span><h2>让 MILO 更像你的小伙伴。</h2><form id="settings-form"><label for="persona-input">角色与说话风格</label><textarea id="persona-input" maxlength="600" rows="4" placeholder="例如：你是一位热情的展厅迎宾员，回复简洁、礼貌；遇到访客先挥手再鞠躬。"></textarea><label for="reply-language">回复语言</label><select id="reply-language"><option value="zh-CN">简体中文</option><option value="en-US">English</option><option value="auto">跟随用户语言</option></select><p>设定保存在当前浏览器，下次对话生效。朗读使用浏览器提供的语音，部分语音可能需要联网。</p><button class="send-button" type="submit">保存设定</button></form></dialog>
     <script type="module" src="/src/main.js"></script>
   </body>

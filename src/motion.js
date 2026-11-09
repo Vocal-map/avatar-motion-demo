@@ -39,9 +39,9 @@ export function poseAt(action, progress, intensity = 1) {
     if (p < .23) crouch = Math.sin(p / .23 * Math.PI);
     else if (p < .70) air = Math.sin((p - .23) / .47 * Math.PI);
     else crouch = .55 * Math.sin((p - .70) / .30 * Math.PI);
-    // The two leg links sum to .785. Their symmetric bend compensates the
+    // The two leg links sum to 1.45. Their symmetric bend compensates the
     // hip height so both soles stay on the platform during the crouch.
-    pose.y = -.785 * (1 - Math.cos(.55 * crouch)) + .88 * air;
+    pose.y = -1.45 * (1 - Math.cos(.55 * crouch)) + .88 * air;
     pose.rightLegX = pose.leftLegX = -.55 * crouch + .13 * air;
     pose.kneeX = 1.1 * crouch + .25 * air;
     pose.bodyX = .10 * crouch;
@@ -101,7 +101,7 @@ export function poseAt(action, progress, intensity = 1) {
     for (const key of Object.keys(pose)) pose[key] = neutral[key] + (pose[key] - neutral[key]) * amount;
     if (action === 'jump' && (p < .23 || p >= .70)) {
       // Recompute ground contact after scaling the leg angles.
-      pose.y = -.785 + .38 * Math.cos(pose.rightLegX) + .405 * Math.cos(pose.rightLegX + pose.kneeX);
+      pose.y = -1.45 + .70 * Math.cos(pose.rightLegX) + .75 * Math.cos(pose.rightLegX + pose.kneeX);
     }
     pose.eyeScale = clamp(pose.eyeScale, .1, 1);
   }
@@ -111,14 +111,26 @@ export function poseAt(action, progress, intensity = 1) {
 export function idlePose(time, reducedMotion = false) {
   const pose = neutralPose();
   if (reducedMotion) return pose;
-  pose.headY = Math.sin(time * .55) * .055;
-  pose.headZ = Math.sin(time * .8) * .018;
-  pose.bodyZ = Math.sin(time * 1.2) * .009;
-  pose.rightArmZ -= Math.sin(time * 1.2) * .015;
-  pose.leftArmZ += Math.sin(time * 1.2) * .015;
-  // A quick double-sided eyelid close every few seconds.
-  const phase = time % 4.8;
-  if (phase < .16) pose.eyeScale = .12 + .88 * Math.abs(phase / .08 - 1);
+  // Different slow rhythms keep the head, breath and hands from moving in lockstep.
+  const breath = Math.sin(time * 1.45);
+  const shift = Math.sin(time * .38) * .7 + Math.sin(time * .17 + .9) * .3;
+  pose.bodyX = .008 + breath * .012;
+  pose.bodyZ = shift * .022;
+  pose.headX = -.018 + Math.sin(time * .63 + 1.1) * .018;
+  pose.headY = Math.sin(time * .43) * .075 + Math.sin(time * .19 + .8) * .025;
+  pose.headZ = -shift * .018 + Math.sin(time * .71) * .009;
+  pose.rightArmX = -.055 + breath * .008;
+  pose.leftArmX = -.04 + Math.sin(time * 1.45 - .25) * .008;
+  pose.rightElbowX = -.17 + Math.sin(time * .49 + .6) * .025;
+  pose.leftElbowX = -.13 + Math.sin(time * .41 + 1.9) * .02;
+  pose.rightArmZ -= .025 + Math.sin(time * .57) * .012;
+  pose.leftArmZ += .018 + Math.sin(time * .51 + 1.3) * .012;
+  // Smooth eyelid closure; a second blink occasionally breaks up the rhythm.
+  const phase = ((time % 13.7) + 13.7) % 13.7;
+  for (const start of [1.4, 5.6, 5.96, 10.8]) {
+    const p = (phase - start) / .21;
+    if (p > 0 && p < 1) pose.eyeScale = 1 - .95 * Math.sin(Math.PI * p) ** 2;
+  }
   return pose;
 }
 

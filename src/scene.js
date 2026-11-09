@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { createRobot } from './robot.js';
+import { createAvatar } from './glb-avatar.js';
 
-export function createScene(container, onContextLost) {
+export async function createScene(container, onContextLost) {
+  const avatar = await createAvatar();
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'default' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
@@ -74,15 +75,32 @@ export function createScene(container, onContextLost) {
   contactShadow.position.set(0, .094, .08);
   scene.add(contactShadow);
 
-  const robot = createRobot();
-  scene.add(robot.root);
+  scene.add(avatar.root);
   let initialSize = true;
   let lastCompact = false;
-  function resetCamera() {
-    const compact = container.clientWidth < 550;
-    camera.position.set(compact ? 3.65 : 3.4, 2.95, compact ? 9.9 : 8.6);
-    controls.target.set(0, 1.63, 0);
+  let faceView = false;
+  function positionCamera() {
+    if (faceView) {
+      controls.minDistance = .8;
+      controls.maxDistance = 4;
+      controls.target.copy(avatar.getFaceTarget());
+      camera.position.copy(controls.target).add(new THREE.Vector3(.28, .03, 1.65));
+    } else {
+      const compact = container.clientWidth < 550;
+      controls.minDistance = 6.1;
+      controls.maxDistance = 12;
+      camera.position.set(compact ? 3.65 : 3.4, 2.95, compact ? 9.9 : 8.6);
+      controls.target.set(0, 1.63, 0);
+    }
     controls.update();
+  }
+  function resetCamera() {
+    faceView = false;
+    positionCamera();
+  }
+  function setFaceView(enabled) {
+    faceView = enabled;
+    positionCamera();
   }
   function resize() {
     const width = container.clientWidth;
@@ -92,7 +110,7 @@ export function createScene(container, onContextLost) {
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
     const compact = width < 550;
-    if (initialSize || compact !== lastCompact) resetCamera();
+    if (initialSize || compact !== lastCompact) positionCamera();
     initialSize = false;
     lastCompact = compact;
   }
@@ -102,8 +120,15 @@ export function createScene(container, onContextLost) {
   const handleContextLost = (event) => { event.preventDefault(); onContextLost(); };
   renderer.domElement.addEventListener('webglcontextlost', handleContextLost);
 
-  function render(pose) {
-    robot.applyPose(pose);
+  const trackingDelta = new THREE.Vector3();
+  function render(pose, face) {
+    avatar.applyPose(pose, face);
+    if (faceView) {
+      // Follow the face while preserving the angle chosen with orbit controls.
+      trackingDelta.copy(avatar.getFaceTarget()).sub(controls.target).multiplyScalar(.12);
+      controls.target.add(trackingDelta);
+      camera.position.add(trackingDelta);
+    }
     contactShadow.material.opacity = 1 - Math.max(0, pose.y) * .65;
     contactShadow.scale.setScalar(1 + Math.max(0, pose.y) * .3);
     controls.update();
@@ -118,10 +143,10 @@ export function createScene(container, onContextLost) {
       object.geometry?.dispose();
       if (object.material) (Array.isArray(object.material) ? object.material : [object.material]).forEach((m) => materials.add(m));
     });
-    materials.forEach((m) => m.dispose());
+    materials.forEach((m) => { for (const value of Object.values(m)) if (value?.isTexture) value.dispose(); m.dispose(); });
     contactTexture.dispose();
     renderer.dispose();
     renderer.domElement.remove();
   }
-  return { render, resetCamera, dispose };
+  return { render, resetCamera, setFaceView, dispose };
 }

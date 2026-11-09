@@ -17,7 +17,8 @@ const server = createApp({
     });
     const request = JSON.parse(body);
     const onlyChat = request.messages.at(-1).content.includes('只聊天');
-    const plan = { reply: onlyChat ? '【模拟测试回复】我在听，今天有什么想分享的？' : '【模拟测试回复】欢迎新朋友！我先挥手，再慢慢鞠躬两次。', actions: onlyChat ? [] : [
+    const plan = { reply: onlyChat ? '【模拟测试回复】我在听，今天有什么想分享的？' : '【模拟测试回复】欢迎新朋友！我先挥手，再慢慢鞠躬两次。',
+      expression: { name: onlyChat ? 'curious' : 'smile', intensity: .65 }, actions: onlyChat ? [] : [
       { name: 'wave', speed: 1.2, intensity: .8, repeat: 1 },
       { name: 'bow', speed: .8, intensity: 1.1, repeat: 2 },
     ] };

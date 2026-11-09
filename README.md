@@ -1,6 +1,6 @@
 # MILO · 3D 动作实验室
 
-一个原生 JavaScript + Three.js 的网页 Demo。页面主体为可旋转的 3D 机器人，下方支持本地动作指令与 DeepSeek AI 对话。LLM 生成文字回复，并选择动作、顺序、次数、速度和幅度。
+一个原生 JavaScript + Three.js 的网页 Demo。页面主体为可旋转的 3D 职业女性数字人，下方支持本地动作指令与 DeepSeek AI 对话。LLM 生成文字回复，并选择动作、顺序、次数、速度和幅度。
 
 ## 运行
 
@@ -82,6 +82,7 @@ node scripts/check-llm.mjs
 ```json
 {
   "reply": "欢迎新朋友！很高兴见到你。",
+  "expression": { "name": "smile", "intensity": 0.6 },
   "actions": [
     { "name": "wave", "speed": 1, "intensity": 1, "repeat": 1 },
     { "name": "bow", "speed": 0.7, "intensity": 1, "repeat": 2 }
@@ -92,6 +93,17 @@ node scripts/check-llm.mjs
 `actions: []` 表示只回复、不执行动作。允许的动作是 `wave`（挥手）、`bow`（鞠躬）、`jump`（跳跃）、`nod`（点头）、`shake`（摇头）、`shrug`（耸肩）、`cheer`（欢呼）、`dance`（跳舞）、`stretch`（伸懒腰）、`think`（思考）、`salute`（敬礼）；每组最多 4 步、合计最多执行 6 次；单步重复 1～3 次，速度为 0.6～1.6 倍，幅度为 0.5～1.2 倍。LLM 不生成或执行 JavaScript，不直接写入任意关节参数。
 
 若需要新增转身等全新动作，在 `src/commands.js` 注册动作信息，在 `src/motion.js` 实现对应动画，系统提示词会自动读取注册表中的动作名称与标签。`src/action-plan.js` 会从动作注册表生成白名单。
+
+### 表情与演示嘴型
+
+- 页面下方的“表情与嘴型”提供自然、微笑、疑惑、惊讶、难过五种预设，以及 0～100% 强度调节。点击表情会进入面部特写，可点击“返回全身”或重置视角退出。
+- “无声嘴型演示”不调用语音或模型接口，可先选表情再观察嘴唇张合。“朗读示例”使用浏览器语音，同时开启“朗读回复”。实际声音取决于浏览器已提供的语音。
+- AI 新协议增加 `expression: { name, intensity }`，表情名称为 `neutral`、`smile`、`curious`、`surprised`、`sad`，强度 0～1。缺省时兼容旧回复并使用自然表情；非法字段和超出范围的权重会被拒绝。AI 表情短暂保持后淡出，手动预览保持到下一次选择或停止。
+- `src/face.js` 管理表情权重和基于文字节奏的嘴型；`src/glb-avatar.js` 将权重混合到下颌、嘴唇、嘴角、眉毛、脸颊和眼睑骨骼。每帧从初始姿态计算，避免重复播放后面部变形累积。
+- 朗读真正开始后才启动嘴型；词句边界事件用于粗略校时。结束、失败、取消、切换模式和清空对话会停止嘴型。浏览器缺少边界事件时仍可演示，但长句的同步偏差可能更明显。
+- 当前嘴型是按文字估算的演示动画，未使用语音音素，也没有接入云 TTS。中文字符交替使用少量基础嘴型，不代表真实发音口型。要做准确同步，下一步需接入带 Viseme 时间戳的语音并逐个校准模型口型。
+
+自动化检查：`node --test tests/*.test.js`。可选浏览器检查：Windows 安装 Chrome 后运行 `node tests/browser-face-check.mjs`，使用独立浏览器配置和本地模拟回复、模拟语音事件，截图保存在 `artifacts/face-*.png`；该检查不验证实际语音发声质量。
 
 ### 服务端配置与数据
 
@@ -104,11 +116,13 @@ node scripts/check-llm.mjs
 
 ## 模型来源
 
-**MILO 为本项目原创的程序化 3D 模型**，代码位于 `src/robot.js`。通过圆角立方体、胶囊、球体、圆柱及曲线管道构造，没有下载第三方角色或使用外部模型服务。
+当前使用 [Businesswoman 02](https://models.codelove.in/models/business-female-02/) GLB 模型，约 1.4 MB，80 根骨骼。Copyright (c) 2020 Microsoft，MIT 授权；授权全文随模型保存在 `public/models/LICENSE-business-female-02.txt`，发布时请一并保留。
 
-头部、腰部、肩部、肘部、髋部、膝部及脚部均有独立的层级关节。动画使用按时间采样的关节姿态；鞠躬围绕腰部进行，跳跃下蹲时补偿腿部长度并保持脚掌水平。
+`src/glb-avatar.js` 使用 GLTFLoader 和 MeshoptDecoder 加载本地模型，并将现有 11 种程序化动作映射到骨骼。该 GLB 没有内嵌动画；当前没有使用网站配套动作包。外观为金色短发、酒红色西装和黑色长裤，不是参考照片人物复刻。旧的程序化模型保存在 `src/robot.js`，不再作为页面默认模型。
 
-可直接修改 `src/robot.js` 中的材质色值和几何参数，更换角色外观；修改 `src/motion.js` 可调整动作幅度与节奏。
+模型由本机 `/models/` 路径提供，不依赖模型网站实时下载。更新后需要重启 Node 服务以启用模型静态资源路由；加载失败会显示重试提示。
+
+待机状态包含轻微呼吸、上身重心变化、放松的肘部和缓慢转头；GLB 通过上下眼睑骨骼实现眨眼。尊重系统“减少动态效果”设置。模型不含 Morph Targets 或预制发音口型，表情及演示嘴型通过面部骨骼实现。
 
 ## 网络与第三方组件
 
