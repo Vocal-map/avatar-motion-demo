@@ -8,6 +8,10 @@
     "build": "node scripts/build.mjs",
     "preview": "node scripts/serve.mjs --dist",
     "test": "node --test tests/*.test.js",
-    "check:llm": "node scripts/check-llm.mjs"
+    "check:llm": "node scripts/check-llm.mjs",
+    "check:tts": "node scripts/check-tts.mjs"
+  },
+  "dependencies": {
+    "pinyin-pro": "3.29.5"
   }
 }

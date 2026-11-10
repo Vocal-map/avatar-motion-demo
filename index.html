@@ -49,7 +49,8 @@
           <div class="control-panel">
             <div class="panel-top"><span class="panel-heading"><span class="small-spark">✦</span>和 MILO 聊一聊</span><div class="mode-switch" role="group" aria-label="交互模式"><button id="mode-local" type="button" aria-pressed="true">本地动作</button><button id="mode-ai" type="button" aria-pressed="false" disabled>AI 对话</button></div></div>
             <div class="ai-toolbar"><span id="ai-status" role="status">正在检查 DeepSeek 配置…</span><div><label class="voice-option"><input id="voice-toggle" type="checkbox" />朗读回复</label><button id="chat-settings" type="button">角色设定</button><button id="stop-action" type="button">停止</button></div></div>
-            <p id="ai-privacy" class="ai-privacy" hidden>AI 模式会将消息、最近 6 轮对话和角色设定发送至配置的模型服务。</p>
+            <div class="tts-controls"><label for="voice-provider">朗读方式</label><select id="voice-provider"><option value="volcengine">火山语音 · 字词同步</option><option value="browser">浏览器朗读 · 节奏估算</option></select><span id="tts-status" role="status">正在检查语音配置…</span><span id="tts-progress"></span><button id="tts-playback" type="button" hidden>播放语音</button></div>
+            <p id="ai-privacy" class="ai-privacy" hidden>AI 模式会将消息、最近 6 轮对话和角色设定发送至模型服务。选择火山语音并勾选“朗读回复”后，回复文字会发送至火山引擎合成语音。</p>
             <section id="conversation" class="conversation" aria-label="与 MILO 的对话" hidden><div class="conversation-heading"><span>和 MILO 的对话</span><button id="clear-chat" type="button">清空对话</button></div><div id="chat-log" class="chat-log" role="log" aria-live="polite" aria-relevant="additions text"><p id="chat-empty" class="chat-empty">试着说：「先挥手，再慢慢鞠躬两次，欢迎新朋友。」</p></div><p id="action-plan" class="action-plan" hidden></p></section>
             <form id="command-form" autocomplete="off">
               <label class="sr-only" for="command-input">输入动作指令</label>
@@ -67,7 +68,7 @@
                 <button id="mouth-demo" type="button" disabled>无声嘴型演示</button>
                 <button id="voice-demo" type="button" disabled>朗读示例</button>
               </div>
-              <p class="face-note">勾选“朗读回复”后，说话时会自动带嘴型。当前按文字节奏估算，尚非逐音同步。</p>
+              <p class="face-note">火山语音按真实字词时间戳对齐音频，字内嘴型由拼音估算。浏览器朗读与无声演示按文字节奏估算。</p>
               <p id="face-status" class="face-status" role="status" aria-live="polite">自然 · 未朗读</p>
             </section>
             <p id="feedback" class="feedback" role="status" aria-live="polite">每句话都有回应，每个动作都有一点小心意。</p>
@@ -77,7 +78,7 @@
       </main>
     </div>
     <dialog id="about-dialog"><button id="close-about" class="dialog-close" aria-label="关闭" type="button">×</button><span class="eyebrow">MEET MILO</span><h2>一个从零诞生的小伙伴。</h2><p>当前角色使用 Businesswoman 02 GLB 模型，包含材质贴图和 80 根骨骼。身体、头部、手臂和双腿分别具有独立关节，支持挥手、鞠躬、跳跃、点头、摇头、耸肩、欢呼、跳舞、伸懒腰、思考和敬礼，共 11 种动作。</p><p>本地动作模式不上传指令。AI 对话模式通过本机服务调用 DeepSeek，由模型生成文字回复和动作组合；API Key 只保存在服务端。可在角色设定中自定义语气和回复语言。</p><div class="about-actions"><span>打招呼 → 挥手</span><span>欢迎光临 → 鞠躬</span><span>跳跃 → 起跳</span></div><small>模型来源：models.codelove.in / Businesswoman 02。Copyright © 2020 Microsoft，MIT 授权。动作由本项目进行骨骼适配。</small></dialog>
-    <dialog id="settings-dialog"><button id="close-settings" class="dialog-close" aria-label="关闭角色设定" type="button">×</button><span class="eyebrow">MAKE IT YOURS</span><h2>让 MILO 更像你的小伙伴。</h2><form id="settings-form"><label for="persona-input">角色与说话风格</label><textarea id="persona-input" maxlength="600" rows="4" placeholder="例如：你是一位热情的展厅迎宾员，回复简洁、礼貌；遇到访客先挥手再鞠躬。"></textarea><label for="reply-language">回复语言</label><select id="reply-language"><option value="zh-CN">简体中文</option><option value="en-US">English</option><option value="auto">跟随用户语言</option></select><p>设定保存在当前浏览器，下次对话生效。朗读使用浏览器提供的语音，部分语音可能需要联网。</p><button class="send-button" type="submit">保存设定</button></form></dialog>
+    <dialog id="settings-dialog"><button id="close-settings" class="dialog-close" aria-label="关闭角色设定" type="button">×</button><span class="eyebrow">MAKE IT YOURS</span><h2>让 MILO 更像你的小伙伴。</h2><form id="settings-form"><label for="persona-input">角色与说话风格</label><textarea id="persona-input" maxlength="600" rows="4" placeholder="例如：你是一位热情的展厅迎宾员，回复简洁、礼貌；遇到访客先挥手再鞠躬。"></textarea><label for="reply-language">回复语言</label><select id="reply-language"><option value="zh-CN">简体中文</option><option value="en-US">English</option><option value="auto">跟随用户语言</option></select><p>设定保存在当前浏览器，下次对话生效。朗读方式在主面板选择；火山语音会上传待朗读的回复文字。</p><button class="send-button" type="submit">保存设定</button></form></dialog>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

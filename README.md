@@ -4,12 +4,13 @@
 
 ## 运行
 
-需要 Node.js 18 或更新版本，无需安装 npm 依赖。
+需要 Node.js 18 或更新版本。首次运行先执行 `npm.cmd ci`，安装服务端拼音转换依赖 `pinyin-pro`；双击启动脚本会在缺少依赖时自动安装。
 
 Windows 可直接双击项目里的 `start-demo.cmd`，然后在浏览器打开终端显示的地址。也可以手动启动：
 
 ```powershell
 cd D:\Documents\WebProjects\avatar-motion-demo
+npm.cmd ci
 node scripts/serve.mjs
 ```
 
@@ -59,9 +60,9 @@ LLM_THINKING=disabled
 - “开心地跳两下，告诉我今天也要加油。”
 - “不要做动作，用英语介绍一下你自己。”
 
-“角色设定”可调整角色身份、语气与回复语言，保存在当前浏览器，下次请求生效。“朗读回复”使用浏览器语音合成，默认关闭；优先使用匹配语言的本地语音，部分语音可能由浏览器的网络服务提供。没有麦克风输入或口型同步。
+“角色设定”可调整角色身份、语气与回复语言，保存在当前浏览器，下次请求生效。“朗读回复”默认关闭，主面板可选择火山语音或浏览器朗读。火山语音会把回复文字发送至火山引擎；浏览器朗读优先使用匹配语言的本地语音，部分语音需要联网。没有麦克风输入。
 
-AI 回复展示在对话区，角色气泡展示简短预览。动作与朗读从回复到达后开始，不做逐词对齐。保留最近 6 轮成功对话作为上下文；清空对话或刷新页面后重置。请求期间不能重复发送，点击“停止”、切换模式或清空对话会取消正在进行的请求、朗读与动作。直接动作按钮不调用 LLM，并会替换正在播放的 AI 动作方案。
+AI 回复展示在对话区，角色气泡展示简短预览。动作从回复到达后开始，火山语音完整合成后开始播放，嘴型随实际音频播放时钟与字词时间戳对齐。保留最近 6 轮成功对话作为上下文；清空对话或刷新页面后重置。请求期间不能重复发送，点击“停止”、切换模式或清空对话会取消正在进行的请求、朗读与动作。直接动作按钮不调用 LLM，并会替换正在播放的 AI 动作方案。
 
 可在普通本机终端进行一次真实接口检查（会调用一次 DeepSeek）：
 
@@ -97,13 +98,31 @@ node scripts/check-llm.mjs
 ### 表情与演示嘴型
 
 - 页面下方的“表情与嘴型”提供自然、微笑、疑惑、惊讶、难过五种预设，以及 0～100% 强度调节。点击表情会进入面部特写，可点击“返回全身”或重置视角退出。
-- “无声嘴型演示”不调用语音或模型接口，可先选表情再观察嘴唇张合。“朗读示例”使用浏览器语音，同时开启“朗读回复”。实际声音取决于浏览器已提供的语音。
+- “无声嘴型演示”不调用语音或模型接口，可先选表情再观察嘴唇张合。“朗读示例”使用当前所选朗读方式，同时开启“朗读回复”。
 - AI 新协议增加 `expression: { name, intensity }`，表情名称为 `neutral`、`smile`、`curious`、`surprised`、`sad`，强度 0～1。缺省时兼容旧回复并使用自然表情；非法字段和超出范围的权重会被拒绝。AI 表情短暂保持后淡出，手动预览保持到下一次选择或停止。
-- `src/face.js` 管理表情权重和基于文字节奏的嘴型；`src/glb-avatar.js` 将权重混合到下颌、嘴唇、嘴角、眉毛、脸颊和眼睑骨骼。每帧从初始姿态计算，避免重复播放后面部变形累积。
-- 朗读真正开始后才启动嘴型；词句边界事件用于粗略校时。结束、失败、取消、切换模式和清空对话会停止嘴型。浏览器缺少边界事件时仍可演示，但长句的同步偏差可能更明显。
-- 当前嘴型是按文字估算的演示动画，未使用语音音素，也没有接入云 TTS。中文字符交替使用少量基础嘴型，不代表真实发音口型。要做准确同步，下一步需接入带 Viseme 时间戳的语音并逐个校准模型口型。
+- `src/face.js` 管理表情和嘴型；`src/glb-avatar.js` 将权重混合到下颌、嘴唇、嘴角、眉毛、脸颊和眼睑骨骼。每帧从初始姿态计算，避免重复播放后面部变形累积。
+- 火山语音以 `audio.currentTime` 驱动嘴型；暂停、缓冲、字词间静音、结束、失败和取消时闭嘴。播放受自动播放策略限制时显示“播放语音”，点击后重用现有音频，不会再次请求合成。支持暂停和继续。
+- 当前采用**真实字词时间戳 + 估算嘴型**：服务返回 `sentence.words`，音素列表为空；服务端用拼音估算声母、韵母对应的嘴型和字内时间分配。这不是音素级同步或 Viseme，英语、多音字与长词的口型精度有限。浏览器朗读和无声演示仍按文字节奏估算。
 
 自动化检查：`node --test tests/*.test.js`。可选浏览器检查：Windows 安装 Chrome 后运行 `node tests/browser-face-check.mjs`，使用独立浏览器配置和本地模拟回复、模拟语音事件，截图保存在 `artifacts/face-*.png`；该检查不验证实际语音发声质量。
+
+### 火山语音合成 1.0（当前试用服务）
+
+使用旧版控制台的“语音合成大模型-字符版”试用（服务 10007），在本机 `.env` 填写以下配置，然后重启 Node 服务。App ID、Access Token 只在后端使用，不能复制到前端或提交到 Git。
+
+```dotenv
+VOLC_TTS_APP_ID=在本机填写
+VOLC_TTS_ACCESS_TOKEN=在本机填写
+VOLC_TTS_RESOURCE_ID=seed-tts-1.0
+VOLC_TTS_VOICE_TYPE=zh_female_shuangkuaisisi_moon_bigtts
+VOLC_TTS_TIMEOUT_MS=60000
+```
+
+接口采用 [V3 HTTP SSE](https://docs.volcengine.com/docs/doubao-voice/http-chunked-sse-unidirectional-streaming-v3?lang=zh)，通过 `X-Api-App-Id`、`X-Api-Access-Key`、`X-Api-Resource-Id` 鉴权，启用 `audio_params.enable_timestamp`。不再请求未授权的小模型 `volc.tts.default`，也不使用 `VOLC_TTS_CLUSTER`。
+
+后端把 16 kHz、单声道 16-bit PCM 流合并为 WAV，验证完整结束事件、音频大小、时间戳顺序与范围后返回。每次最多 600 字、180 秒，每次只允许一条语音请求；跨站调用被拒绝。缺少时间戳、权限不足或合成失败时显示错误，不会自动切换语音服务。页面“已配置”只表示配置已读取，实际授权在合成时验证。
+
+运行 `npm.cmd run check:tts` 可真实调用一次合成并保存 `artifacts/volc-tts-check.wav`；会消耗少量试用字数。诊断只打印资源、音色、时长和时间戳数量，不打印密钥或原始鉴权头。`node tests/ui-fixture.mjs` 的 5180 页面提供模拟语音，适合检查暂停、继续、停止和连续对话，不调用真实服务。
 
 ### 服务端配置与数据
 
@@ -140,7 +159,7 @@ node scripts/build.mjs
 node scripts/serve.mjs --dist
 ```
 
-构建结果在 `dist/`。`node scripts/serve.mjs --dist` 同时提供构建后的页面和 AI 接口。只上传 `dist/` 到静态托管时，本地动作仍可运行，AI 功能需要另外部署后端。当前 Node 服务面向本机 Demo；要公开部署，需补充身份验证与用户配额，并迁移到目标平台支持的后端运行方式。不要将 `.env` 上传到静态托管。
+构建结果在 `dist/`。`node scripts/serve.mjs --dist` 同时提供构建后的页面、AI 和 TTS 接口。只上传 `dist/` 到静态托管时，本地动作仍可运行，AI 和火山语音需要另外部署后端。当前 Node 服务面向本机 Demo；要公开部署，需补充身份验证与用户配额，并迁移到目标平台支持的后端运行方式。不要将 `.env` 上传到静态托管。
 
 测试覆盖指令映射、动作衔接、不同幅度下的脚掌接地、动作方案校验、对话历史边界、DeepSeek 请求格式、超时与取消、错误输出，以及“本机 HTTP 服务 → 模拟兼容模型接口 → 动作方案”的完整链路。自动化测试使用模拟接口，不消耗实际模型额度；真实接口可用上述 `check-llm.mjs` 单独检查。
 
@@ -151,6 +170,8 @@ index.html          页面布局与依赖 import map
 src/style.css       页面样式、响应式布局
 src/main.js         交互、加载状态、动画队列与帧循环
 src/chat.js         AI 模式、对话记录、角色偏好和朗读
+src/volc-voice.js   云端合成音频、暂停/继续与播放生命周期
+src/speech-timing.js  字词对齐嘴型的校验、采样与形状
 src/action-plan.js  前后端共享的动作协议与校验
 src/commands.js     指令映射与识别
 src/motion.js       动画姿态与有界队列（可单独测试）
@@ -158,9 +179,12 @@ src/robot.js        原创 3D 角色与关节层级
 src/scene.js        摄像机、灯光、阴影、舞台和视角操作
 server/config.mjs  服务端环境配置与公开状态
 server/llm.mjs     DeepSeek / 兼容接口适配、提示词与错误处理
+server/tts.mjs     火山 V3 SSE、音频合并与真实字词时间戳
+server/mouth-cues.mjs  拼音转换与字内嘴型估算
 server/app.mjs     本地 HTTP 服务与 API 路由
 scripts/serve.mjs   服务启动入口
 scripts/check-llm.mjs  真实接口诊断（调用一次模型）
+scripts/check-tts.mjs  真实语音合成检查（消耗少量试用字数）
 scripts/build.mjs   静态构建
 tests/behavior.test.js  行为与运动约束测试
 tests/llm.test.js       协议、接口与异常测试

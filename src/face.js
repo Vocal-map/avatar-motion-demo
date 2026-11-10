@@ -1,3 +1,5 @@
+import { validateMouthCues, sampleMouthCues } from './speech-timing.js';
+
 // Shared, bounded face vocabulary. The model selects a preset, never bone transforms.
 export const EXPRESSIONS = Object.freeze({
   neutral: { label: '自然', weights: {} },
@@ -10,7 +12,7 @@ export const EXPRESSIONS = Object.freeze({
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
 export function neutralFace() {
   return { smile: 0, cheek: 0, squint: 0, browRaise: 0, browKnit: 0,
-    asymmetry: 0, eyeWide: 0, jawOpen: 0, round: 0, wide: 0, frown: 0, innerRaise: 0 };
+    asymmetry: 0, eyeWide: 0, jawOpen: 0, round: 0, wide: 0, lipBite: 0, frown: 0, innerRaise: 0 };
 }
 
 export function validateExpression(value) {
@@ -57,27 +59,38 @@ export class FaceController {
     this.expiresAt = durationMs > 0 ? this.clock() + durationMs : Infinity;
   }
   startSpeech(text, demo = false) {
-    this.speech = { timeline: speechTimeline(text), anchorTime: this.clock(), anchorOffset: 0, pausedAt: null, demo };
+    this.speech = { mode: 'estimated', timeline: speechTimeline(text), anchorTime: this.clock(), anchorOffset: 0, pausedAt: null, demo };
+  }
+  startTimedSpeech(cues, durationMs, readTimeMs) {
+    const segments = validateMouthCues(cues, durationMs);
+    if (typeof readTimeMs !== 'function') throw new Error('缺少音频播放时钟。');
+    this.speech = { mode: 'word', segments, durationMs, readTimeMs, pausedAt: null, demo: false };
+    if (this.expiresAt !== Infinity) this.expiresAt = Math.max(this.expiresAt, this.clock() + durationMs + 1500);
   }
   boundary(charIndex) {
-    if (!this.speech || !Number.isFinite(charIndex) || charIndex < 0) return;
+    if (!this.speech || this.speech.mode === 'word' || !Number.isFinite(charIndex) || charIndex < 0) return;
     const segment = this.speech.timeline.segments.find(item => item.offset >= charIndex);
     if (segment) { this.speech.anchorOffset = segment.start; this.speech.anchorTime = this.clock(); }
   }
   pauseSpeech() { if (this.speech && this.speech.pausedAt === null) this.speech.pausedAt = this.clock(); }
   resumeSpeech() {
     if (this.speech && this.speech.pausedAt !== null) {
-      this.speech.anchorTime += this.clock() - this.speech.pausedAt;
+      if (this.speech.mode !== 'word') this.speech.anchorTime += this.clock() - this.speech.pausedAt;
       this.speech.pausedAt = null;
     }
   }
-  stopSpeech() { this.speech = null; }
+  stopSpeech() {
+    this.speech = null;
+    for (const key of ['jawOpen', 'round', 'wide', 'lipBite']) this.current[key] = 0;
+  }
   reset() { this.stopSpeech(); this.setExpression({ name: 'neutral', intensity: .6 }); }
   update(dt, now = this.clock()) {
     if (now >= this.expiresAt) this.setExpression({ name: 'neutral', intensity: .6 });
     const target = neutralFace();
     for (const [key, weight] of Object.entries(EXPRESSIONS[this.expression.name].weights)) target[key] = weight * this.expression.intensity;
-    if (this.speech) {
+    if (this.speech?.mode === 'word') {
+      Object.assign(target, this.speech.pausedAt === null ? sampleMouthCues(this.speech.segments, this.speech.readTimeMs()) : sampleMouthCues([], 0));
+    } else if (this.speech) {
       const elapsed = now - this.speech.anchorTime + this.speech.anchorOffset;
       const segment = this.speech.timeline.segments.find(item => item.start <= elapsed && elapsed < item.end);
       // While speaking, lip articulation owns the opening, including punctuation pauses.
@@ -93,7 +106,9 @@ export class FaceController {
       if (this.speech.demo && elapsed >= this.speech.timeline.duration) this.stopSpeech();
     }
     for (const key of Object.keys(target)) {
-      const alpha = 1 - Math.exp(-clamp(dt, 0, .1) * (['jawOpen', 'round', 'wide'].includes(key) ? 25 : 8));
+      const mouth = ['jawOpen', 'round', 'wide', 'lipBite'].includes(key);
+      const immediateClose = this.speech?.mode === 'word' && mouth && target.jawOpen === 0;
+      const alpha = immediateClose ? 1 : 1 - Math.exp(-clamp(dt, 0, .1) * (mouth ? 30 : 8));
       this.current[key] += (clamp(target[key]) - this.current[key]) * alpha;
     }
     return { ...this.current };

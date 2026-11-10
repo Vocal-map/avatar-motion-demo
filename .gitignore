@@ -7,3 +7,6 @@ dist/
 !.env.example
 artifacts/face-*.png
 artifacts/model-candidates/
+artifacts/volc-*.png
+artifacts/volc-*.json
+artifacts/volc-*.wav

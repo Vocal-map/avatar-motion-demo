@@ -4,11 +4,24 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from '../server/app.mjs';
 import { configFromEnv } from '../server/config.mjs';
+import { ttsConfigFromEnv } from '../server/tts.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
 const server = createApp({
   root,
   config: configFromEnv({ LLM_API_KEY: 'test-only', LLM_MODEL: 'UI 联调测试（模拟）' }),
+  ttsConfig: ttsConfigFromEnv({ VOLC_TTS_APP_ID: 'test-only', VOLC_TTS_ACCESS_TOKEN: 'test-only' }),
+  ttsFetchImpl: async (_, { body }) => {
+    const text = JSON.parse(body).req_params.text;
+    // A quiet 12-second tone gives enough time to inspect pause/resume manually.
+    const pcm = Buffer.alloc(12 * 32000);
+    for (let i = 0; i < pcm.length / 2; i++) pcm.writeInt16LE(Math.round(100 * Math.sin(2 * Math.PI * 220 * i / 16000)), i * 2);
+    const chars = Array.from(text).filter(char => /[\p{L}\p{N}]/u.test(char));
+    const interval = 11 / chars.length;
+    const words = chars.map((word, index) => ({ word, startTime: .1 + interval * index, endTime: .1 + interval * index + interval * .8 }));
+    const events = [{ code: 0, data: pcm.toString('base64') }, { code: 0, sentence: { text, phonemes: [], words } }, { code: 20000000 }];
+    return new Response(events.map(value => `data: ${JSON.stringify(value)}\n\n`).join(''), { headers: { 'Content-Type': 'text/event-stream' } });
+  },
   fetchImpl: async (_, { body, signal }) => {
     await new Promise((resolve, reject) => {
       const onAbort = () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); };

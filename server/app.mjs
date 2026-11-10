@@ -3,6 +3,7 @@ import { stat, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { ApiError, requestPlan } from './llm.mjs';
 import { publicConfig } from './config.mjs';
+import { ttsConfigFromEnv, publicTtsConfig, synthesizeSpeech } from './tts.mjs';
 
 const mime = { '.glb': 'model/gltf-binary', '.txt': 'text/plain; charset=utf-8', '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
 const JSON_LIMIT = 64 * 1024;
@@ -34,9 +35,10 @@ function readJson(req) {
   });
 }
 
-export function createApp({ root, config, isDist = false, fetchImpl = fetch }) {
+export function createApp({ root, config, ttsConfig = ttsConfigFromEnv({}), isDist = false, fetchImpl = fetch, ttsFetchImpl = fetch }) {
   const directory = path.resolve(root, isDist ? 'dist' : '.');
   let pending = false;
+  let pendingTts = false;
   const server = http.createServer(async (req, res) => {
     try {
       const allowedHosts = ['localhost', '127.0.0.1', '[::1]'].map((host) => `${host}:${req.socket.localPort}`);
@@ -45,10 +47,23 @@ export function createApp({ root, config, isDist = false, fetchImpl = fetch }) {
       if (pathname.startsWith('/api/')) {
         // Prevent another website from spending the locally configured API key.
         if (req.headers['sec-fetch-site'] === 'cross-site' || (req.headers.origin && req.headers.origin !== `http://${req.headers.host}`)) throw new ApiError(403, 'CROSS_ORIGIN', '不允许跨站点调用。');
-        if (pathname === '/api/config' && req.method === 'GET') { json(res, 200, publicConfig(config)); return; }
-        if (pathname !== '/api/chat') { json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在。' } }); return; }
+        if (pathname === '/api/config' && req.method === 'GET') { json(res, 200, { ...publicConfig(config), tts: publicTtsConfig(ttsConfig) }); return; }
+        if (!['/api/chat', '/api/tts'].includes(pathname)) { json(res, 404, { error: { code: 'NOT_FOUND', message: '接口不存在。' } }); return; }
         if (req.method !== 'POST') { json(res, 405, { error: { code: 'METHOD_NOT_ALLOWED', message: '请使用 POST 请求。' } }); return; }
         if ((req.headers['content-type'] || '').split(';')[0].trim().toLowerCase() !== 'application/json') throw new ApiError(415, 'CONTENT_TYPE', '请求必须使用 application/json。');
+        if (pathname === '/api/tts') {
+          if (!ttsConfig.configured) throw new ApiError(503, 'TTS_NOT_CONFIGURED', ttsConfig.reason);
+          if (pendingTts) throw new ApiError(429, 'TTS_BUSY', '正在合成一段语音，请稍等或停止后重试。');
+          pendingTts = true;
+          const controller = new AbortController();
+          const onClose = () => { if (!res.writableEnded) controller.abort(); };
+          res.on('close', onClose);
+          try {
+            const body = await readJson(req);
+            json(res, 200, await synthesizeSpeech(body, ttsConfig, { fetchImpl: ttsFetchImpl, signal: controller.signal }));
+          } finally { pendingTts = false; res.off('close', onClose); }
+          return;
+        }
         if (!config.configured) throw new ApiError(503, 'NOT_CONFIGURED', config.reason);
         if (pending) throw new ApiError(429, 'BUSY', 'MILO 正在处理一条消息，请稍后再试。');
         pending = true;

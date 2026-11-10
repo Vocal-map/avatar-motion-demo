@@ -10,4 +10,4 @@ await mkdir(output, { recursive: true });
 await cp(path.join(root, 'index.html'), path.join(output, 'index.html'));
 await cp(path.join(root, 'src'), path.join(output, 'src'), { recursive: true });
 await cp(path.join(root, 'public'), output, { recursive: true });
-console.log('Built static site in dist/ (no installation required).');
+console.log('Built static site in dist/. Serve with the Node backend for AI and TTS.');

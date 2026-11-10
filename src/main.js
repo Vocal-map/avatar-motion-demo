@@ -64,7 +64,8 @@ function enableControls(enabled) {
   quickButtons.forEach((button) => { button.disabled = blocked; });
   $('#reset-camera').disabled = !enabled;
   $('#face-view').disabled = !enabled;
-  for (const element of [...expressionButtons, $('#expression-intensity'), $('#mouth-demo'), $('#voice-demo')]) element.disabled = blocked;
+  for (const element of [...expressionButtons, $('#expression-intensity'), $('#mouth-demo')]) element.disabled = blocked;
+  $('#voice-demo').disabled = blocked || !chat?.canSpeak();
 }
 function startAction(action) {
   active = action;
@@ -201,7 +202,7 @@ function frame(timestamp) {
     currentPose = blendPose(transitionFrom, idlePose(idleTime, reducedMotion.matches), idleTransition);
   }
   const facePose = face.update(dt);
-  const status = `${EXPRESSIONS[face.expression.name].label} · ${face.speech ? face.speech.demo ? '无声嘴型演示' : face.speech.pausedAt !== null ? '朗读暂停' : '朗读中（估算嘴型）' : '未朗读'}`;
+  const status = `${EXPRESSIONS[face.expression.name].label} · ${face.speech ? face.speech.demo ? '无声嘴型演示' : face.speech.pausedAt !== null ? '朗读暂停' : face.speech.mode === 'word' ? '朗读中（字词同步 · 嘴型估算）' : '朗读中（估算嘴型）' : '未朗读'}`;
   if (status !== lastFaceStatus) {
     $('#face-status').textContent = status;
     expressionButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.expression === face.expression.name)));

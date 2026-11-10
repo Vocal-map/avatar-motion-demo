@@ -92,6 +92,7 @@ try {
   await click('#mode-ai');
   await evaluate(`document.querySelector('#command-input').value='请微笑，只聊天';document.querySelector('#command-form').requestSubmit()`);
   await waitFor(`document.querySelector('#chat-log').textContent.includes('【模拟回复】') && document.querySelector('#face-status').textContent.includes('微笑')`, 'AI expression applied');
+  await evaluate(`document.querySelector('#voice-provider').value='browser';document.querySelector('#voice-provider').dispatchEvent(new Event('change'))`);
   await click('#voice-demo');
   await waitFor(`document.querySelector('#face-status').textContent.includes('朗读中')`, 'voice start');
   await click('#stop-action');

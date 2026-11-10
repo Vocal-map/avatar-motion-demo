@@ -1,5 +1,6 @@
 import { validatePlan, describePlan } from './action-plan.js';
 import { createVoice } from './voice.js';
+import { createVolcVoice } from './volc-voice.js';
 
 const $ = (selector) => document.querySelector(selector);
 const SETTINGS_KEY = 'milo-chat-preferences-v1';
@@ -20,11 +21,39 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
   let generation = 0;
   let request = null;
   const log = $('#chat-log');
+  let voiceStatus = 'idle';
   const voice = createVoice({
     onStart: text => face.startSpeech(text), onBoundary: index => face.boundary(index),
     onPause: () => face.pauseSpeech(), onResume: () => face.resumeSpeech(), onEnd: () => face.stopSpeech(),
     onError: () => setFeedback('浏览器暂时无法朗读，文字、表情与动作仍可使用。', 'error'),
   });
+  const cloudVoice = createVolcVoice({
+    timeoutMs: () => config?.tts?.timeoutMs || 60000,
+    onStart: (cues, duration, clock) => face.startTimedSpeech(cues, duration, clock),
+    onPause: () => face.pauseSpeech(), onResume: () => face.resumeSpeech(),
+    onEnd: () => { face.stopSpeech(); $('#tts-progress').textContent = ''; },
+    onStatus: value => {
+      voiceStatus = value;
+      updateVoiceControls();
+    },
+    onTime: (time, duration) => { $('#tts-progress').textContent = `${(time / 1000).toFixed(1)} / ${(duration / 1000).toFixed(1)} 秒`; },
+    onError: message => setFeedback(message, 'error'),
+  });
+  function canSpeak() {
+    return $('#voice-provider').value === 'browser' ? 'speechSynthesis' in window : !!config?.tts?.configured;
+  }
+  function updateVoiceControls() {
+    const cloud = $('#voice-provider').value === 'volcengine';
+    const labels = { loading: '火山语音生成中…', playing: '火山语音 · 字词同步', paused: '语音已暂停', blocked: '请点击播放语音', error: '语音未完成，可重新朗读' };
+    $('#tts-status').textContent = cloud
+      ? labels[voiceStatus] || (config?.tts?.configured ? '火山语音已配置 · 字词同步' : '火山语音未配置')
+      : '浏览器朗读 · 文字节奏估算';
+    $('#tts-status').title = cloud ? config?.tts?.reason || '按真实字词时间戳对齐音频，字内嘴型由拼音估算；首次合成时验证连接。' : '浏览器提供语音，嘴型根据文字节奏估算。';
+    $('#tts-playback').hidden = !cloud || !['playing', 'paused', 'blocked'].includes(voiceStatus);
+    $('#tts-playback').textContent = voiceStatus === 'playing' ? '暂停语音' : voiceStatus === 'blocked' ? '播放语音' : '继续语音';
+    $('#voice-toggle').disabled = !canSpeak();
+    refreshControls();
+  }
 
   function setBusy(value) {
     busy = value;
@@ -57,7 +86,7 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
     }
     setBusy(false);
   }
-  function cancelVoice() { voice.cancel(); }
+  function cancelVoice() { voice.cancel(); cloudVoice.cancel(); }
   function stop(message = '已停止当前回复和动作。') {
     cancelRequest();
     cancelVoice();
@@ -68,8 +97,10 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
     setFeedback(message);
   }
   function speak(text, language) {
-    if (!$('#voice-toggle').checked || !('speechSynthesis' in window)) return;
-    voice.speak(text, language);
+    if (!$('#voice-toggle').checked) return;
+    if (!canSpeak()) { setFeedback(config?.tts?.reason || '所选语音服务暂不可用，请检查配置。', 'error'); return; }
+    if ($('#voice-provider').value === 'volcengine') void cloudVoice.speak(text);
+    else voice.speak(text, language);
   }
   function setMode(next) {
     if (next === 'ai' && !config?.configured) return;
@@ -152,7 +183,12 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
     empty.textContent = '开始一个新话题吧，MILO 在听。';
     log.append(empty);
   });
-  $('#voice-toggle').disabled = !('speechSynthesis' in window);
+  $('#voice-toggle').disabled = true;
+  $('#voice-provider').addEventListener('change', () => { cancelVoice(); updateVoiceControls(); });
+  $('#tts-playback').addEventListener('click', () => {
+    if (voiceStatus === 'playing') cloudVoice.pause();
+    else void cloudVoice.resume();
+  });
   $('#voice-toggle').addEventListener('change', () => {
     if (!$('#voice-toggle').checked) cancelVoice();
   });
@@ -185,17 +221,19 @@ export function createChat({ playPlan, stopMotion, setFeedback, setSpeech, refre
     } catch {
       $('#ai-status').textContent = 'AI 服务未连接 · 本地动作可用';
       $('#ai-status').title = '请通过 node scripts/serve.mjs 启动带 AI 接口的本地服务。';
-    } finally { clearTimeout(timer); }
+    } finally { clearTimeout(timer); updateVoiceControls(); }
   }
   loadServiceStatus();
   window.addEventListener('pagehide', () => { cancelRequest(); cancelVoice(); });
   return {
     isBusy: () => busy,
+    canSpeak,
     speakPreview: () => {
       if (!isReady() || busy) return;
-      if (!('speechSynthesis' in window)) { setFeedback('当前浏览器不支持朗读，可以使用无声嘴型演示。', 'error'); return; }
+      if (!canSpeak()) { setFeedback(config?.tts?.reason || '所选语音服务暂不可用。', 'error'); return; }
+      cancelVoice();
       $('#voice-toggle').checked = true;
-      voice.speak('你好，欢迎光临。很高兴见到你！', 'zh-CN');
+      speak('你好，欢迎光临。很高兴见到你！', 'zh-CN');
     },
     handleSubmit: (message) => { if (mode !== 'ai') return false; void send(message); return true; },
     beforeDirectAction: () => { cancelVoice(); face.reset(); if (mode === 'ai') { cancelRequest(); stopMotion(); $('#action-plan').hidden = true; } },

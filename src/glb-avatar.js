@@ -69,6 +69,7 @@ export async function createAvatar() {
     rotate('MJaw', face.jawOpen * .30);
     offset('MUpperLip', 0, face.jawOpen * .0035, face.round * .007);
     offset('MBottomLip', 0, -face.jawOpen * .004, face.round * .006);
+    offset('MBottomLip', 0, face.lipBite * .005, -face.lipBite * .003);
     for (const [side, sign] of [['R', -1], ['L', 1]]) {
       const asymmetricLift = face.asymmetry * (side === 'R' ? .003 : -.001);
       offset(side + 'MouthCorner', sign * (face.smile * .010 + face.wide * .008 - face.round * .008),
